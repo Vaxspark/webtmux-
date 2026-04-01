@@ -1,0 +1,22 @@
+[
+  {
+    "id": "ubuntu-a",
+    "name": "Ubuntu A",
+    "host": "127.0.0.1",
+    "port": 22011,
+    "username": "root",
+    "authStrategy": "agent",
+    "platform": "ubuntu"
+  },
+  {
+    "id": "windows-b",
+    "name": "Windows B",
+    "host": "127.0.0.1",
+    "port": 22022,
+    "username": "Administrator",
+    "authStrategy": "password",
+    "platform": "windows",
+    "password": "replace-me",
+    "tmuxCommand": "wsl.exe -e tmux"
+  }
+]
