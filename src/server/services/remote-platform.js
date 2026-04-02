@@ -30,6 +30,14 @@ export function buildDirectoryListCommand(server, targetPath) {
   return `sh -lc ${quotePosixArg(script)}`;
 }
 
+export function buildWorkspaceNavigationCommand(server, workspacePath) {
+  const quotedPath = quoteShellArg(server, workspacePath);
+  if (isWindowsShell(server)) {
+    return `Set-Location -LiteralPath ${quotedPath}`;
+  }
+  return `cd ${quotedPath}`;
+}
+
 export function buildRemoteCommand(server, args) {
   let tmuxCmd = server.tmuxCommand;
   // If tmuxUser is specified and differs from the SSH connection user,
@@ -44,3 +52,5 @@ export function buildRemoteCommand(server, args) {
   }
   return command;
 }
+
+

@@ -2,6 +2,7 @@ import { detectCliType } from '../../shared/cli-detection.js';
 import {
   buildDirectoryListCommand,
   buildRemoteCommand,
+  buildWorkspaceNavigationCommand,
   quoteShellArg
 } from './remote-platform.js';
 import { runRemoteCommand } from './ssh-client.js';
@@ -145,7 +146,7 @@ export async function createCliWindow(server, { cliType, launchCommand, sessionN
   ]);
   const created = await runRemoteCommand(server, createWindow);
   const pane = parseCreatedPaneRow(created.stdout.trim());
-  await sendKeys(server, pane.paneId, [`cd ${quotePosixCommandArg(workspacePath)}`]);
+  await sendKeys(server, pane.paneId, [buildWorkspaceNavigationCommand(server, workspacePath)]);
   await sendKeys(server, pane.paneId, ['Enter']);
   await sendKeys(server, pane.paneId, [launchCommand]);
   await sendKeys(server, pane.paneId, ['Enter']);
@@ -156,5 +157,4 @@ export async function sendKeys(server, target, keys) {
   const command = buildRemoteCommand(server, ['send-keys', '-t', target, ...keys]);
   await runRemoteCommand(server, command);
 }
-
 
