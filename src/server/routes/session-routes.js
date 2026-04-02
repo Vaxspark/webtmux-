@@ -9,7 +9,7 @@ const inputSchema = z.object({
   serverId: z.string().min(1),
   target: z.string().min(1),
   text: z.string().optional(),
-  control: z.enum(['enter', 'ctrl-c', 'esc']).optional()
+  control: z.enum(['enter', 'ctrl-c', 'esc', 'up', 'down', 'tab']).optional()
 });
 
 const createSessionSchema = z.object({

@@ -20,6 +20,64 @@ const addServerSchema = z.object({
   privateKeyPath: z.string().min(1).optional()
 });
 
+function trimTrailingSeparators(value) {
+  return String(value ?? '').replace(/[\\/]+$/, '');
+}
+
+function normalizeCurrentPath(value) {
+  const trimmed = trimTrailingSeparators(value);
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed === '/') {
+    return '/';
+  }
+  if (/^[A-Za-z]:$/.test(trimmed)) {
+    return `${trimmed}\\`;
+  }
+  return trimmed;
+}
+
+function getParentPath(value) {
+  const trimmed = trimTrailingSeparators(value);
+  if (!trimmed || trimmed === '/') {
+    return null;
+  }
+
+  if (/^[A-Za-z]:\\?$/.test(trimmed)) {
+    return null;
+  }
+
+  const lastSlash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  if (lastSlash < 0) {
+    return null;
+  }
+
+  const parent = trimmed.slice(0, lastSlash);
+  if (!parent) {
+    return '/';
+  }
+
+  if (/^[A-Za-z]:$/.test(parent)) {
+    return `${parent}\\`;
+  }
+
+  return parent;
+}
+
+function resolveBrowsePath(requestedPath, directories) {
+  if (requestedPath !== undefined && requestedPath !== null) {
+    return normalizeCurrentPath(requestedPath);
+  }
+
+  const firstDirectoryPath = directories[0]?.path;
+  if (!firstDirectoryPath) {
+    return null;
+  }
+
+  return normalizeCurrentPath(getParentPath(firstDirectoryPath) ?? firstDirectoryPath);
+}
+
 export async function registerServerRoutes(app, dependencies = {}) {
   const gateway = dependencies.gateway ?? tmuxGateway;
 
@@ -68,8 +126,8 @@ export async function registerServerRoutes(app, dependencies = {}) {
     }
 
     const directories = await gateway.listDirectories(server, query.path);
-    const path = query.path ?? null;
-    const parentPath = path ? path.replace(/[\\/][^\\/]+$/, '') || null : null;
+    const path = resolveBrowsePath(query.path, directories);
+    const parentPath = path ? getParentPath(path) : null;
 
     return {
       path,
