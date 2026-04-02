@@ -6,6 +6,7 @@ import {
 } from '../../src/server/services/remote-platform.js';
 import {
   buildCliWindowName,
+  buildDirectoryEntries,
   parseCreatedPaneRow,
   parseDirectoryRows,
   parsePaneLines,
@@ -45,11 +46,12 @@ await runCase('buildCliWindowName derives a stable tmux window label', () => {
   assert.equal(buildCliWindowName('codex-cli', '/srv/work/webtmux'), 'codex-cli:webtmux');
 });
 
-await runCase('buildDirectoryListCommand assembles a posix directory listing command', () => {
+await runCase('buildDirectoryListCommand returns absolute child paths for home-root browsing', () => {
   const server = { platform: 'ubuntu', shellType: 'posix' };
-  const command = buildDirectoryListCommand(server, '/srv/work/webtmux');
+  const command = buildDirectoryListCommand(server, '');
   assert.match(command, /^sh -lc /);
-  assert.match(command, /find \. -mindepth 1 -maxdepth 1 -type d -printf/);
+  assert.ok(command.includes('find $HOME -mindepth 1 -maxdepth 1 -type d -printf'));
+  assert.ok(command.includes("%p\\n"));
 });
 
 await runCase('buildWorkspaceNavigationCommand assembles a platform-aware cd command', () => {
@@ -60,3 +62,9 @@ await runCase('buildWorkspaceNavigationCommand assembles a platform-aware cd com
   );
 });
 
+await runCase('buildDirectoryEntries preserves absolute child paths', () => {
+  assert.deepEqual(buildDirectoryEntries(['/home/demo/repo', '/home/demo/notes']), [
+    { name: 'repo', path: '/home/demo/repo' },
+    { name: 'notes', path: '/home/demo/notes' }
+  ]);
+});

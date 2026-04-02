@@ -61,12 +61,16 @@ function quotePosixCommandArg(value) {
   return "'" + stringValue.replace(/'/g, "'\"'\"'") + "'";
 }
 
-function joinRemotePath(server, parentPath, childName) {
-  if (!parentPath) {
-    return isWindowsServer(server) ? childName : `/${childName}`;
-  }
-  const separator = parentPath.includes('\\') ? '\\' : '/';
-  return `${String(parentPath).replace(/[\\/]+$/, '')}${separator}${childName}`;
+function getDirectoryEntryName(entryPath) {
+  const normalized = String(entryPath ?? '').replace(/[\\/]+$/, '');
+  return normalized.split(/[\\/]/).filter(Boolean).pop() || normalized;
+}
+
+export function buildDirectoryEntries(directoryPaths) {
+  return directoryPaths.map((entryPath) => ({
+    name: getDirectoryEntryName(entryPath),
+    path: entryPath
+  }));
 }
 
 export async function capturePane(server, target) {
@@ -77,7 +81,6 @@ export async function capturePane(server, target) {
 
 export async function listPanes(server) {
   const format = '#{session_name}\t#{window_name}\t#{pane_index}\t#{pane_title}\t#{pane_current_command}\t#{pane_id}';
-  // Use tmux -L <socket> or filter by server.tmuxUser if specified
   const listArgs = ['list-panes', '-a', '-F', format];
   const command = buildRemoteCommand(server, listArgs);
   const result = await runRemoteCommand(server, command);
@@ -104,10 +107,7 @@ export async function listPanes(server) {
 export async function listDirectories(server, targetPath) {
   const command = buildDirectoryListCommand(server, targetPath);
   const result = await runRemoteCommand(server, command);
-  return parseDirectoryRows(result.stdout).map((name) => ({
-    name,
-    path: joinRemotePath(server, targetPath, name)
-  }));
+  return buildDirectoryEntries(parseDirectoryRows(result.stdout));
 }
 
 export async function ensureWorkspaceDirectory(server, workspacePath) {
@@ -157,4 +157,3 @@ export async function sendKeys(server, target, keys) {
   const command = buildRemoteCommand(server, ['send-keys', '-t', target, ...keys]);
   await runRemoteCommand(server, command);
 }
-
