@@ -6,6 +6,12 @@ export function mapControlAction(action) {
       return ['C-c'];
     case 'esc':
       return ['Escape'];
+    case 'up':
+      return ['Up'];
+    case 'down':
+      return ['Down'];
+    case 'tab':
+      return ['Tab'];
     default:
       throw new Error(`Unsupported control action: ${action}`);
   }

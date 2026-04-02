@@ -8,10 +8,12 @@ import { getConfig } from './config.js';
 import { registerAuthRoutes } from './routes/auth-routes.js';
 import { registerOverviewRoutes } from './routes/overview-routes.js';
 import { registerSessionRoutes } from './routes/session-routes.js';
+import { registerServerRoutes } from './routes/server-routes.js';
 
-export function createApp() {
+export function createApp(dependencies = {}) {
   const app = Fastify({ logger: false });
   const config = getConfig();
+  const routeDependencies = dependencies.routes ?? {};
 
   app.register(cookie);
   app.register(jwt, {
@@ -28,7 +30,8 @@ export function createApp() {
   });
   app.register(registerAuthRoutes);
   app.register(registerOverviewRoutes);
-  app.register(registerSessionRoutes);
+  app.register(async (instance) => registerSessionRoutes(instance, routeDependencies.session ?? {}));
+  app.register(async (instance) => registerServerRoutes(instance, routeDependencies.server ?? {}));
   app.get('/health', async () => ({ ok: true }));
 
   return app;
