@@ -25,12 +25,13 @@ function trimTrailingSeparators(value) {
 }
 
 function normalizeCurrentPath(value) {
+  if (value === '/') {
+    return '/';
+  }
+
   const trimmed = trimTrailingSeparators(value);
   if (!trimmed) {
     return null;
-  }
-  if (trimmed === '/') {
-    return '/';
   }
   if (/^[A-Za-z]:$/.test(trimmed)) {
     return `${trimmed}\\`;

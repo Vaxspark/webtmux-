@@ -35,7 +35,12 @@ export async function registerSessionRoutes(app, dependencies = {}) {
   });
 
   app.post('/api/session/create', { preHandler: requireAuth }, async (request, reply) => {
-    const body = createSessionSchema.parse(request.body ?? {});
+    const parsed = createSessionSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ message: 'Invalid create session payload' });
+    }
+
+    const body = parsed.data;
     const config = getConfig();
     const server = loadServerRegistry(config.registryFile).find((entry) => entry.id === body.serverId);
 

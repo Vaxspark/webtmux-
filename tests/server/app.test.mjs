@@ -98,6 +98,26 @@ await runCase('createApp reports current path when browsing the default director
   await app.close();
 });
 
+await runCase('createApp preserves the root path when browsing /', async () => {
+  const { app, cookies } = await createTestApp({
+    server: {
+      gateway: {
+        listDirectories: async () => [{ name: 'home', path: '/home' }]
+      }
+    }
+  });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/servers/server-a/fs?path=%2F',
+    cookies
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().path, '/');
+  await app.close();
+});
+
 await runCase('createApp returns / as the parent path for root-adjacent POSIX paths', async () => {
   const { app, cookies } = await createTestApp({
     server: {
@@ -177,6 +197,33 @@ await runCase('createApp exposes session create api', async () => {
     cliType: 'codex-cli',
     paneTitle: 'codex-cli:webtmux'
   });
+  await app.close();
+});
+
+await runCase('createApp returns 400 for invalid session create payloads', async () => {
+  const { app, cookies } = await createTestApp({
+    session: {
+      gateway: {
+        ensureWorkspaceDirectory: async () => true,
+        createCliWindow: async () => {
+          throw new Error('should not be called');
+        }
+      }
+    }
+  });
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/session/create',
+    cookies,
+    payload: {
+      serverId: 'server-a',
+      cliType: 'codex-cli',
+      launchCommand: 'codex'
+    }
+  });
+
+  assert.equal(response.statusCode, 400);
   await app.close();
 });
 
