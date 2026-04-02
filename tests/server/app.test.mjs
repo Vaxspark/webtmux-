@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -54,7 +54,8 @@ await runCase('createApp exposes remote directory browse api', async () => {
   const { app, cookies } = await createTestApp({
     server: {
       gateway: {
-        listDirectories: async () => [{ name: 'repo', path: '/home/test/repo' }]
+        listDirectories: async () => [{ name: 'repo', path: '/home/test/repo' }],
+        resolveDirectoryPath: async () => '/home/test'
       }
     }
   });
@@ -78,7 +79,8 @@ await runCase('createApp reports current path when browsing the default director
   const { app, cookies } = await createTestApp({
     server: {
       gateway: {
-        listDirectories: async () => [{ name: 'repo', path: '/home/test/repo' }]
+        listDirectories: async () => [{ name: 'repo', path: '/home/test/repo' }],
+        resolveDirectoryPath: async () => '/home/test'
       }
     }
   });
@@ -98,7 +100,31 @@ await runCase('createApp reports current path when browsing the default director
   await app.close();
 });
 
-await runCase('createApp preserves the root path when browsing /', async () => {
+
+await runCase('createApp keeps the resolved workspace path when the default directory is empty', async () => {
+  const { app, cookies } = await createTestApp({
+    server: {
+      gateway: {
+        listDirectories: async () => [],
+        resolveDirectoryPath: async () => '/home/test/empty'
+      }
+    }
+  });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/servers/server-a/fs',
+    cookies
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    path: '/home/test/empty',
+    parentPath: '/home/test',
+    directories: []
+  });
+  await app.close();
+});await runCase('createApp preserves the root path when browsing /', async () => {
   const { app, cookies } = await createTestApp({
     server: {
       gateway: {

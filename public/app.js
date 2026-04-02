@@ -1,4 +1,4 @@
-const COMMANDS = {
+﻿const COMMANDS = {
   'claude-code': [
     { command: '/help', description: 'Show help and available commands', group: 'session' },
     { command: '/clear', description: 'Clear conversation history and free up context', group: 'session' },
@@ -421,6 +421,7 @@ async function refreshSession() {
 
 async function loadSession(session) {
   state.session = session;
+  state.view = 'overview';
   state.sessionError = '';
   state.inputValue = '';
   state.commandOpen = false;
@@ -560,6 +561,12 @@ export function renderOverviewPaneCard(pane, { isHidden = false } = {}) {
 }
 
 export function renderDirectoryBrowser({ currentPath, parentPath = '', directories = [], error = '', loading = false }) {
+  const listHtml = loading
+    ? ''
+    : directories.length
+      ? directories.map((entry) => `<button class="cli-browser__row" type="button" data-action="browse-directory" data-path="${escapeHtml(entry.path)}"><span class="cli-browser__row-name">${escapeHtml(entry.name)}</span><span class="cli-browser__row-path">${escapeHtml(entry.path)}</span></button>`).join('')
+      : '<div class="panel empty">No subdirectories found.</div>';
+
   return `
     <section class="cli-browser">
       <div class="cli-browser__header">
@@ -568,9 +575,7 @@ export function renderDirectoryBrowser({ currentPath, parentPath = '', directori
       </div>
       ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
       ${loading ? '<div class="panel empty">Loading directories...</div>' : ''}
-      <div class="cli-browser__list">
-        ${directories.length ? directories.map((entry) => `<button class="cli-browser__row" type="button" data-action="browse-directory" data-path="${escapeHtml(entry.path)}"><span class="cli-browser__row-name">${escapeHtml(entry.name)}</span><span class="cli-browser__row-path">${escapeHtml(entry.path)}</span></button>`).join('') : '<div class="panel empty">No subdirectories found.</div>'}
-      </div>
+      <div class="cli-browser__list">${listHtml}</div>
     </section>`;
 }
 
@@ -906,7 +911,7 @@ function sessionHtml() {
       </section>
     </div>`;
 
-  const breadcrumbs = `${escapeHtml(state.session.serverId)} &rsaquo; ${escapeHtml(`${state.session.sessionName}/${state.session.windowName}/${state.session.paneIndex}`)}`;
+  const breadcrumbs = `${escapeHtml(state.session.serverId)} › ${escapeHtml(`${state.session.sessionName}/${state.session.windowName}/${state.session.paneIndex}`)}`;
   return layoutHtml(content, state.session.paneTitle || 'Session', breadcrumbs);
 }
 
@@ -1004,7 +1009,7 @@ function attachListeners() {
       state.createCli.directories = [];
       state.createCli.parentPath = '';
       await loadServers();
-      await browseRemoteDirectory('', true);
+      await browseRemoteDirectory('');
       return;
     }
 
@@ -1093,11 +1098,6 @@ function attachListeners() {
       state.sidebarOpen = false;
       render();
       return;
-    } else if (action === 'nav-settings') {
-      state.view = 'settings';
-      state.sidebarOpen = false;
-      render();
-      return;
     } else if (action === 'toggle-sidebar' || action === 'open-sidebar') {
       state.sidebarOpen = !state.sidebarOpen;
       render();
@@ -1143,6 +1143,7 @@ function attachListeners() {
 
     if (action === 'open-settings') {
       state.view = 'settings';
+      state.sidebarOpen = false;
       state.serverFormError = '';
       await loadServers();
       render();
@@ -1274,6 +1275,11 @@ function attachListeners() {
       await sendMessage();
     }
   });
+}
+
+if (typeof document !== 'undefined') {
+  attachListeners();
+  render();
   if (state.authenticated) {
     loadOverview().catch((error) => {
       state.overviewError = error.message;
@@ -1281,6 +1287,8 @@ function attachListeners() {
     });
   }
 }
+
+
 
 
 

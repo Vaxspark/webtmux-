@@ -1,6 +1,7 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { runCase } from '../helpers.mjs';
 import {
+  buildCurrentDirectoryCommand,
   buildDirectoryListCommand,
   buildRemoteCommand,
   buildWorkspaceNavigationCommand,
@@ -10,6 +11,7 @@ import {
   buildCliWindowName,
   buildDirectoryEntries,
   createCliWindow,
+  resolveDirectoryPath,
   ensureWebTmuxSession,
   ensureWorkspaceDirectory,
   parseCreatedPaneRow,
@@ -23,7 +25,7 @@ await runCase('parsePaneLines normalizes capture-pane output', () => {
   assert.deepEqual(parsePaneLines('one\ntwo\n'), ['one', 'two']);
 });
 
-await runCase('parsePaneRow splits tmux rows with unit separator', () => {
+await runCase('parsePaneRow splits tmux rows with field separator', () => {
   const parsed = parsePaneRow(['cli-main', 'node', '0', 'workspace', 'node', '%0'].join(PANE_FIELD_SEPARATOR));
   assert.deepEqual(parsed, {
     sessionName: 'cli-main',
@@ -87,11 +89,17 @@ await runCase('wsl-backed windows tmux uses posix command bodies', () => {
   assert.ok(remoteCommand.includes('wsl.exe -e tmux send-keys -t %1'));
   assert.ok(remoteCommand.includes("O''\"''\"''Brien"));
   assert.match(buildWorkspaceNavigationCommand(server, '/srv/work/webtmux'), /^cd /);
-  assert.match(buildWorkspaceValidationCommand(server, '/srv/work/webtmux'), /^powershell -NoProfile -Command /);
-  assert.match(buildDirectoryListCommand(server, '/srv/work/webtmux'), /^powershell -NoProfile -Command /);
+  assert.ok(buildWorkspaceValidationCommand(server, '/srv/work/webtmux').includes('wsl.exe -e sh -lc'));
   assert.ok(buildDirectoryListCommand(server, '/srv/work/webtmux').includes('wsl.exe -e sh -lc'));
 });
 
+await runCase('wsl.exe -d Ubuntu tmux uses posix tmux-targeted commands', () => {
+  const server = { platform: 'windows', shellType: 'powershell', username: 'ssh-user', tmuxUser: 'tmux-user', tmuxCommand: 'wsl.exe -d Ubuntu -e tmux' };
+  assert.match(buildWorkspaceNavigationCommand(server, '/srv/work/webtmux'), /^cd /);
+  assert.ok(buildWorkspaceValidationCommand(server, '/srv/work/webtmux').includes('wsl.exe -d Ubuntu -e sh -lc'));
+  assert.ok(buildDirectoryListCommand(server, '/srv/work/webtmux').includes('wsl.exe -d Ubuntu -e sh -lc'));
+  assert.ok(buildRemoteCommand(server, ['send-keys', '-t', '%1', 'pwd']).includes('wsl.exe -d Ubuntu -e tmux'));
+});
 await runCase('ensureWebTmuxSession creates on code 1 and throws on other failures', async () => {
   const commands = [];
   const server = { platform: 'ubuntu', shellType: 'posix', tmuxCommand: 'tmux' };
@@ -188,4 +196,20 @@ await runCase('createCliWindow uses posix navigation for wsl-backed windows tmux
   assert.equal(sentKeys[0], 'cd /srv/work/webtmux');
 });
 
+await runCase('buildCurrentDirectoryCommand resolves the default home path', () => {
+  const command = buildCurrentDirectoryCommand({ platform: 'ubuntu', shellType: 'posix' }, '');
+  assert.match(command, /^sh -lc /);
+  assert.ok(command.includes('"$HOME"'));
+});
 
+await runCase('resolveDirectoryPath returns the resolved remote path', async () => {
+  const path = await resolveDirectoryPath(
+    { platform: 'ubuntu', shellType: 'posix', tmuxCommand: 'tmux' },
+    '',
+    {
+      runCommand: async () => ({ code: 0, stdout: '/home/demo\n', stderr: '' })
+    }
+  );
+
+  assert.equal(path, '/home/demo');
+});

@@ -1,3 +1,4 @@
+﻿import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { runCase } from '../helpers.mjs';
 import {
@@ -180,3 +181,23 @@ await runCase('handleCreateCliDialogKeydown traps tab and closes on escape', () 
 
 
 
+
+await runCase('renderDirectoryBrowser does not show an empty state while loading', () => {
+  const html = renderDirectoryBrowser({
+    currentPath: '/home/demo',
+    directories: [],
+    error: '',
+    loading: true
+  });
+
+  assert.match(html, /Loading directories/);
+  assert.doesNotMatch(html, /No subdirectories found/);
+});
+
+await runCase('web app module keeps its browser bootstrap block', async () => {
+  const source = await readFile(new URL('../../public/app.js', import.meta.url), 'utf8');
+
+  assert.match(source, /if \(typeof document !== 'undefined'\) \{/);
+  assert.match(source, /attachListeners\(\);/);
+  assert.match(source, /render\(\);/);
+});

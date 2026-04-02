@@ -1,5 +1,6 @@
-import { detectCliType } from '../../shared/cli-detection.js';
+﻿import { detectCliType } from '../../shared/cli-detection.js';
 import {
+  buildCurrentDirectoryCommand,
   buildDirectoryListCommand,
   buildRemoteCommand,
   buildWorkspaceNavigationCommand,
@@ -7,7 +8,7 @@ import {
 } from './remote-platform.js';
 import { runRemoteCommand } from './ssh-client.js';
 
-export const PANE_FIELD_SEPARATOR = '\u001f';
+export const PANE_FIELD_SEPARATOR = '\t';
 
 function getRunner(dependencies = {}) {
   return dependencies.runCommand ?? runRemoteCommand;
@@ -94,7 +95,12 @@ export async function listPanes(server, dependencies = {}) {
 
   return Promise.all(rows.map(async (row) => {
     const { sessionName, windowName, paneIndex, paneTitle, processName, paneId } = parsePaneRow(row);
-    const preview = await capturePane(server, paneId, dependencies);
+    let preview = [];
+    try {
+      preview = await capturePane(server, paneId, dependencies);
+    } catch {
+      // pane may have been closed after listing; continue without preview
+    }
     return {
       serverId: server.id,
       paneId,
@@ -114,6 +120,12 @@ export async function listDirectories(server, targetPath, dependencies = {}) {
   const command = buildDirectoryListCommand(server, targetPath);
   const result = await runCheckedRemoteCommand(server, command, 'directory listing', dependencies);
   return buildDirectoryEntries(parseDirectoryRows(result.stdout));
+}
+
+export async function resolveDirectoryPath(server, targetPath, dependencies = {}) {
+  const command = buildCurrentDirectoryCommand(server, targetPath);
+  const result = await runCheckedRemoteCommand(server, command, 'directory path resolution', dependencies);
+  return parsePaneLines(result.stdout)[0] ?? null;
 }
 
 export async function ensureWorkspaceDirectory(server, workspacePath, dependencies = {}) {
@@ -170,3 +182,6 @@ export async function sendKeys(server, target, keys, dependencies = {}) {
   const command = buildRemoteCommand(server, ['send-keys', '-t', target, ...keys]);
   await runCheckedRemoteCommand(server, command, 'tmux send-keys', dependencies);
 }
+
+
+

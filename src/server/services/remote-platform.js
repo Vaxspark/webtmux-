@@ -1,4 +1,4 @@
-function quotePosixArg(value) {
+﻿function quotePosixArg(value) {
   const stringValue = String(value ?? '');
   if (/^[A-Za-z0-9_./:%@+=,#-]+$/.test(stringValue)) {
     return stringValue;
@@ -15,11 +15,22 @@ function isWindowsShell(server) {
 }
 
 function isWslBackedTmux(server) {
-  return isWindowsShell(server) && /^wsl(?:\.exe)?\s+-e\s+tmux(?:\s|$)/i.test(String(server.tmuxCommand ?? '').trim());
+  return isWindowsShell(server) && /^wsl(?:\.exe)?(?:\s+-[^\s]+(?:\s+(?!-e\b)[^\s]+)?)*\s+-e\s+tmux(?:\s|$)/i.test(String(server.tmuxCommand ?? '').trim());
 }
 
 function isPosixTmuxEnvironment(server) {
   return !isWindowsShell(server) || isWslBackedTmux(server);
+}
+
+
+function getWslShellPrefix(server) {
+  const command = String(server.tmuxCommand ?? '').trim();
+  const match = command.match(/^(wsl(?:\.exe)?(?:\s+-[^\s]+(?:\s+(?!-e\b)[^\s]+)?)*\s+-e)\s+tmux(?:\s|$)/i);
+  return match ? match[1] : 'wsl.exe -e';
+}
+
+function buildWslShellCommand(server, shellCommand) {
+  return `powershell -NoProfile -Command ${quotePowershell(`${getWslShellPrefix(server)} sh -lc ${quotePosixArg(shellCommand)}`)}`;
 }
 
 function shouldElevateForTmuxUser(server, respectTmuxUser) {
@@ -39,13 +50,34 @@ export function buildDirectoryListCommand(server, targetPath) {
     const directory = targetPath ? quotePosixArg(targetPath) : '$HOME';
     const script = `find ${directory} -mindepth 1 -maxdepth 1 -type d -printf '%p\\n'`;
     if (isWindowsShell(server)) {
-      return `powershell -NoProfile -Command ${quotePowershell(`wsl.exe -e sh -lc ${quotePosixArg(script)}`)}`;
+      return buildWslShellCommand(server, script);
     }
     return `sh -lc ${quotePosixArg(script)}`;
   }
 
   const directory = targetPath ? quotePowershell(targetPath) : '$HOME';
   const script = `Get-ChildItem -LiteralPath ${directory} -Directory | Select-Object -ExpandProperty FullName`;
+  return `powershell -NoProfile -Command ${quotePowershell(script)}`;
+}
+
+export function buildCurrentDirectoryCommand(server, targetPath) {
+  if (isPosixTmuxEnvironment(server)) {
+    const shellCommand = targetPath
+      ? `cd ${quotePosixArg(targetPath)} && pwd`
+      : 'printf "%s\\n" "$HOME"';
+
+    if (shouldElevateForTmuxUser(server, true)) {
+      return `sudo -u ${quotePosixArg(server.tmuxUser)} sh -lc ${quotePosixArg(shellCommand)}`;
+    }
+    if (isWindowsShell(server)) {
+      return buildWslShellCommand(server, shellCommand);
+    }
+    return `sh -lc ${quotePosixArg(shellCommand)}`;
+  }
+
+  const script = targetPath
+    ? `Get-Item -LiteralPath ${quotePowershell(targetPath)} | Select-Object -ExpandProperty FullName`
+    : 'Get-Item -LiteralPath $HOME | Select-Object -ExpandProperty FullName';
   return `powershell -NoProfile -Command ${quotePowershell(script)}`;
 }
 
@@ -65,7 +97,7 @@ export function buildWorkspaceValidationCommand(server, workspacePath) {
       return `sudo -u ${quotePosixArg(server.tmuxUser)} sh -lc ${quotePosixArg(shellCommand)}`;
     }
     if (isWindowsShell(server)) {
-      return `powershell -NoProfile -Command ${quotePowershell(`wsl.exe -e sh -lc ${quotePosixArg(shellCommand)}`)}`;
+      return buildWslShellCommand(server, shellCommand);
     }
     return `sh -lc ${quotePosixArg(shellCommand)}`;
   }
@@ -87,3 +119,4 @@ export function buildRemoteCommand(server, args, options = {}) {
   }
   return command;
 }
+

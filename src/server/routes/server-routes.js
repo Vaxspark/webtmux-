@@ -1,4 +1,4 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 import { requireAuth } from '../auth.js';
 import { getConfig } from '../config.js';
 import { loadServerRegistry, addServer, updateServer, deleteServer } from '../services/server-registry.js';
@@ -127,7 +127,10 @@ export async function registerServerRoutes(app, dependencies = {}) {
     }
 
     const directories = await gateway.listDirectories(server, query.path);
-    const path = resolveBrowsePath(query.path, directories);
+    const resolvedPath = typeof gateway.resolveDirectoryPath === 'function'
+      ? await gateway.resolveDirectoryPath(server, query.path)
+      : null;
+    const path = normalizeCurrentPath(resolvedPath) ?? resolveBrowsePath(query.path, directories);
     const parentPath = path ? getParentPath(path) : null;
 
     return {
