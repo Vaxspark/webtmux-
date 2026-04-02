@@ -3,12 +3,28 @@ import {
   buildDirectoryListCommand,
   buildRemoteCommand,
   buildWorkspaceNavigationCommand,
-  buildWorkspaceValidationCommand,
-  quoteShellArg
+  buildWorkspaceValidationCommand
 } from './remote-platform.js';
 import { runRemoteCommand } from './ssh-client.js';
 
 export const PANE_FIELD_SEPARATOR = '\u001f';
+
+function getRunner(dependencies = {}) {
+  return dependencies.runCommand ?? runRemoteCommand;
+}
+
+function getSendKeys(dependencies = {}) {
+  return dependencies.sendKeys ?? sendKeys;
+}
+
+async function runCheckedRemoteCommand(server, command, context, dependencies = {}) {
+  const result = await getRunner(dependencies)(server, command);
+  if (result.code === 0) {
+    return result;
+  }
+  const details = result.stderr ? `: ${String(result.stderr).trim()}` : '';
+  throw new Error(`${context} failed with exit code ${result.code}${details}`);
+}
 
 export function parsePaneLines(output) {
   return String(output)
@@ -51,18 +67,6 @@ export function buildCliWindowName(cliType, workspacePath) {
   return `${cliType}:${baseName}`;
 }
 
-function isWindowsServer(server) {
-  return server.platform === 'windows' || server.shellType === 'powershell';
-}
-
-function quotePosixCommandArg(value) {
-  const stringValue = String(value ?? '');
-  if (/^[A-Za-z0-9_./:%@+=,#-]+$/.test(stringValue)) {
-    return stringValue;
-  }
-  return "'" + stringValue.replace(/'/g, "'\"'\"'") + "'";
-}
-
 function getDirectoryEntryName(entryPath) {
   const normalized = String(entryPath ?? '').replace(/[\\/]+$/, '');
   return normalized.split(/[\\/]/).filter(Boolean).pop() || normalized;
@@ -75,35 +79,22 @@ export function buildDirectoryEntries(directoryPaths) {
   }));
 }
 
-export function assertRemoteCommandSucceeded(result, context) {
-  if (result.code === 0) {
-    return result;
-  }
-  const details = result.stderr ? `: ${String(result.stderr).trim()}` : '';
-  throw new Error(`${context} failed with exit code ${result.code}${details}`);
-}
-
-async function runCheckedRemoteCommand(server, command, context) {
-  const result = await runRemoteCommand(server, command);
-  return assertRemoteCommandSucceeded(result, context);
-}
-
-export async function capturePane(server, target) {
+export async function capturePane(server, target, dependencies = {}) {
   const command = buildRemoteCommand(server, ['capture-pane', '-p', '-t', target, '-S', '-120']);
-  const result = await runCheckedRemoteCommand(server, command, 'tmux capture-pane');
+  const result = await runCheckedRemoteCommand(server, command, 'tmux capture-pane', dependencies);
   return parsePaneLines(result.stdout);
 }
 
-export async function listPanes(server) {
+export async function listPanes(server, dependencies = {}) {
   const format = `#{session_name}${PANE_FIELD_SEPARATOR}#{window_name}${PANE_FIELD_SEPARATOR}#{pane_index}${PANE_FIELD_SEPARATOR}#{pane_title}${PANE_FIELD_SEPARATOR}#{pane_current_command}${PANE_FIELD_SEPARATOR}#{pane_id}`;
   const listArgs = ['list-panes', '-a', '-F', format];
   const command = buildRemoteCommand(server, listArgs);
-  const result = await runCheckedRemoteCommand(server, command, 'tmux list-panes');
+  const result = await runCheckedRemoteCommand(server, command, 'tmux list-panes', dependencies);
   const rows = parsePaneLines(result.stdout);
 
   return Promise.all(rows.map(async (row) => {
     const { sessionName, windowName, paneIndex, paneTitle, processName, paneId } = parsePaneRow(row);
-    const preview = await capturePane(server, paneId);
+    const preview = await capturePane(server, paneId, dependencies);
     return {
       serverId: server.id,
       paneId,
@@ -119,34 +110,34 @@ export async function listPanes(server) {
   }));
 }
 
-export async function listDirectories(server, targetPath) {
+export async function listDirectories(server, targetPath, dependencies = {}) {
   const command = buildDirectoryListCommand(server, targetPath);
-  const result = await runCheckedRemoteCommand(server, command, 'directory listing');
+  const result = await runCheckedRemoteCommand(server, command, 'directory listing', dependencies);
   return buildDirectoryEntries(parseDirectoryRows(result.stdout));
 }
 
-export async function ensureWorkspaceDirectory(server, workspacePath) {
+export async function ensureWorkspaceDirectory(server, workspacePath, dependencies = {}) {
   const command = buildWorkspaceValidationCommand(server, workspacePath);
-  const result = await runRemoteCommand(server, command);
+  const result = await getRunner(dependencies)(server, command);
   return result.code === 0;
 }
 
-export async function ensureWebTmuxSession(server, sessionName = 'webtmux') {
+export async function ensureWebTmuxSession(server, sessionName = 'webtmux', dependencies = {}) {
   const hasSession = buildRemoteCommand(server, ['has-session', '-t', sessionName]);
-  const existing = await runRemoteCommand(server, hasSession);
+  const existing = await getRunner(dependencies)(server, hasSession);
   if (existing.code === 0) {
     return sessionName;
   }
   if (existing.code === 1) {
     const createSession = buildRemoteCommand(server, ['new-session', '-d', '-s', sessionName]);
-    await runCheckedRemoteCommand(server, createSession, 'tmux session creation');
+    await runCheckedRemoteCommand(server, createSession, 'tmux session creation', dependencies);
     return sessionName;
   }
   throw new Error(`tmux session check failed with exit code ${existing.code}`);
 }
 
-export async function createCliWindow(server, { cliType, launchCommand, sessionName = 'webtmux', workspacePath }) {
-  await ensureWebTmuxSession(server, sessionName);
+export async function createCliWindow(server, { cliType, launchCommand, sessionName = 'webtmux', workspacePath }, dependencies = {}) {
+  await ensureWebTmuxSession(server, sessionName, dependencies);
   const windowName = buildCliWindowName(cliType, workspacePath);
   const createWindow = buildRemoteCommand(server, [
     'new-window',
@@ -158,16 +149,17 @@ export async function createCliWindow(server, { cliType, launchCommand, sessionN
     '-n',
     windowName
   ]);
-  const created = await runCheckedRemoteCommand(server, createWindow, 'tmux window creation');
+  const created = await runCheckedRemoteCommand(server, createWindow, 'tmux window creation', dependencies);
   const pane = parseCreatedPaneRow(created.stdout.trim());
-  await sendKeys(server, pane.paneId, [buildWorkspaceNavigationCommand(server, workspacePath)]);
-  await sendKeys(server, pane.paneId, ['Enter']);
-  await sendKeys(server, pane.paneId, [launchCommand]);
-  await sendKeys(server, pane.paneId, ['Enter']);
+  const sendKeysFn = getSendKeys(dependencies);
+  await sendKeysFn(server, pane.paneId, [buildWorkspaceNavigationCommand(server, workspacePath)], dependencies);
+  await sendKeysFn(server, pane.paneId, ['Enter'], dependencies);
+  await sendKeysFn(server, pane.paneId, [launchCommand], dependencies);
+  await sendKeysFn(server, pane.paneId, ['Enter'], dependencies);
   return { ...pane, workspacePath };
 }
 
-export async function sendKeys(server, target, keys) {
+export async function sendKeys(server, target, keys, dependencies = {}) {
   const command = buildRemoteCommand(server, ['send-keys', '-t', target, ...keys]);
-  await runCheckedRemoteCommand(server, command, 'tmux send-keys');
+  await runCheckedRemoteCommand(server, command, 'tmux send-keys', dependencies);
 }

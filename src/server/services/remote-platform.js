@@ -14,6 +14,10 @@ function isWindowsShell(server) {
   return server.platform === 'windows' || server.shellType === 'powershell';
 }
 
+function shouldElevateForTmuxUser(server, respectTmuxUser) {
+  return respectTmuxUser && !isWindowsShell(server) && server.tmuxUser && server.tmuxUser !== server.username;
+}
+
 function quoteRemoteCommandArg(server, value) {
   return isWindowsShell(server) ? quotePowershell(value) : quotePosixArg(value);
 }
@@ -42,24 +46,23 @@ export function buildWorkspaceNavigationCommand(server, workspacePath) {
   return `cd ${quotedPath}`;
 }
 
-export function buildWorkspaceValidationCommand(server, workspacePath, options = {}) {
-  const { respectTmuxUser = true } = options;
+export function buildWorkspaceValidationCommand(server, workspacePath) {
   const quotedPath = quoteShellArg(server, workspacePath);
   if (isWindowsShell(server)) {
     return `powershell -NoProfile -Command ${quotePowershell(`if (Test-Path -LiteralPath ${quotedPath} -PathType Container) { exit 0 } else { exit 1 }`)}`;
   }
 
   const shellCommand = `test -d ${quotedPath}`;
-  const wrappedCommand = respectTmuxUser && server.tmuxUser && server.tmuxUser !== server.username
-    ? `sudo -u ${quotePosixArg(server.tmuxUser)} sh -lc ${quotePosixArg(shellCommand)}`
-    : `sh -lc ${quotePosixArg(shellCommand)}`;
-  return wrappedCommand;
+  if (shouldElevateForTmuxUser(server, true)) {
+    return `sudo -u ${quotePosixArg(server.tmuxUser)} sh -lc ${quotePosixArg(shellCommand)}`;
+  }
+  return `sh -lc ${quotePosixArg(shellCommand)}`;
 }
 
 export function buildRemoteCommand(server, args, options = {}) {
   const { respectTmuxUser = true } = options;
   let tmuxCmd = server.tmuxCommand;
-  if (respectTmuxUser && server.tmuxUser && server.tmuxUser !== server.username) {
+  if (shouldElevateForTmuxUser(server, respectTmuxUser)) {
     tmuxCmd = `sudo -u ${quotePosixArg(server.tmuxUser)} ${tmuxCmd}`;
   }
   const quotedArgs = args.map((arg) => quoteRemoteCommandArg(server, arg));
