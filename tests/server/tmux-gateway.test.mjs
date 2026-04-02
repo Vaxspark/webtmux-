@@ -86,9 +86,9 @@ await runCase('buildRemoteCommand uses powershell quoting for apostrophes on win
   assert.match(command, /O''''Brien/);
 });
 
-await runCase('buildWorkspaceValidationCommand ignores tmuxUser for posix validation', () => {
+await runCase('buildWorkspaceValidationCommand respects tmuxUser for posix validation', () => {
   const server = { platform: 'ubuntu', shellType: 'posix', username: 'ssh-user', tmuxUser: 'tmux-user' };
   const command = buildWorkspaceValidationCommand(server, '/srv/work/webtmux');
-  assert.ok(!command.includes('sudo -u'));
-  assert.match(command, /^sh -lc /);
+  assert.ok(command.includes('sudo -u'));
+  assert.match(command, /^sudo -u /);
 });

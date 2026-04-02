@@ -42,12 +42,18 @@ export function buildWorkspaceNavigationCommand(server, workspacePath) {
   return `cd ${quotedPath}`;
 }
 
-export function buildWorkspaceValidationCommand(server, workspacePath) {
+export function buildWorkspaceValidationCommand(server, workspacePath, options = {}) {
+  const { respectTmuxUser = true } = options;
   const quotedPath = quoteShellArg(server, workspacePath);
   if (isWindowsShell(server)) {
     return `powershell -NoProfile -Command ${quotePowershell(`if (Test-Path -LiteralPath ${quotedPath} -PathType Container) { exit 0 } else { exit 1 }`)}`;
   }
-  return `sh -lc ${quotePosixArg(`test -d ${quotedPath}`)}`;
+
+  const shellCommand = `test -d ${quotedPath}`;
+  const wrappedCommand = respectTmuxUser && server.tmuxUser && server.tmuxUser !== server.username
+    ? `sudo -u ${quotePosixArg(server.tmuxUser)} sh -lc ${quotePosixArg(shellCommand)}`
+    : `sh -lc ${quotePosixArg(shellCommand)}`;
+  return wrappedCommand;
 }
 
 export function buildRemoteCommand(server, args, options = {}) {

@@ -133,17 +133,16 @@ export async function ensureWorkspaceDirectory(server, workspacePath) {
 
 export async function ensureWebTmuxSession(server, sessionName = 'webtmux') {
   const hasSession = buildRemoteCommand(server, ['has-session', '-t', sessionName]);
-  const existing = await runCheckedRemoteCommand(server, hasSession, 'tmux session check');
+  const existing = await runRemoteCommand(server, hasSession);
   if (existing.code === 0) {
     return sessionName;
   }
-  if (existing.code !== 1) {
-    throw new Error(`tmux session check failed with exit code ${existing.code}`);
+  if (existing.code === 1) {
+    const createSession = buildRemoteCommand(server, ['new-session', '-d', '-s', sessionName]);
+    await runCheckedRemoteCommand(server, createSession, 'tmux session creation');
+    return sessionName;
   }
-
-  const createSession = buildRemoteCommand(server, ['new-session', '-d', '-s', sessionName]);
-  await runCheckedRemoteCommand(server, createSession, 'tmux session creation');
-  return sessionName;
+  throw new Error(`tmux session check failed with exit code ${existing.code}`);
 }
 
 export async function createCliWindow(server, { cliType, launchCommand, sessionName = 'webtmux', workspacePath }) {
