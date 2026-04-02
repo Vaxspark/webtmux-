@@ -3,9 +3,12 @@ import {
   buildDirectoryListCommand,
   buildRemoteCommand,
   buildWorkspaceNavigationCommand,
+  buildWorkspaceValidationCommand,
   quoteShellArg
 } from './remote-platform.js';
 import { runRemoteCommand } from './ssh-client.js';
+
+export const PANE_FIELD_SEPARATOR = '\u001f';
 
 export function parsePaneLines(output) {
   return String(output)
@@ -14,8 +17,8 @@ export function parsePaneLines(output) {
     .filter(Boolean);
 }
 
-export function parsePaneRow(row) {
-  const [sessionName, windowName, paneIndex, paneTitle, processName, paneId] = row.split('\t');
+export function parsePaneRow(row, separator = PANE_FIELD_SEPARATOR) {
+  const [sessionName, windowName, paneIndex, paneTitle, processName, paneId] = String(row).split(separator);
   return {
     sessionName,
     windowName,
@@ -32,8 +35,8 @@ export function parseDirectoryRows(output) {
     .filter((line) => line.length > 0);
 }
 
-export function parseCreatedPaneRow(row) {
-  const [sessionName, windowName, paneIndex, paneId] = String(row).split('\t');
+export function parseCreatedPaneRow(row, separator = PANE_FIELD_SEPARATOR) {
+  const [sessionName, windowName, paneIndex, paneId] = String(row).split(separator);
   return {
     sessionName,
     windowName,
@@ -87,15 +90,15 @@ async function runCheckedRemoteCommand(server, command, context) {
 
 export async function capturePane(server, target) {
   const command = buildRemoteCommand(server, ['capture-pane', '-p', '-t', target, '-S', '-120']);
-  const result = await runRemoteCommand(server, command);
+  const result = await runCheckedRemoteCommand(server, command, 'tmux capture-pane');
   return parsePaneLines(result.stdout);
 }
 
 export async function listPanes(server) {
-  const format = '#{session_name}\t#{window_name}\t#{pane_index}\t#{pane_title}\t#{pane_current_command}\t#{pane_id}';
+  const format = `#{session_name}${PANE_FIELD_SEPARATOR}#{window_name}${PANE_FIELD_SEPARATOR}#{pane_index}${PANE_FIELD_SEPARATOR}#{pane_title}${PANE_FIELD_SEPARATOR}#{pane_current_command}${PANE_FIELD_SEPARATOR}#{pane_id}`;
   const listArgs = ['list-panes', '-a', '-F', format];
   const command = buildRemoteCommand(server, listArgs);
-  const result = await runRemoteCommand(server, command);
+  const result = await runCheckedRemoteCommand(server, command, 'tmux list-panes');
   const rows = parsePaneLines(result.stdout);
 
   return Promise.all(rows.map(async (row) => {
@@ -123,17 +126,14 @@ export async function listDirectories(server, targetPath) {
 }
 
 export async function ensureWorkspaceDirectory(server, workspacePath) {
-  const quotedPath = quoteShellArg(server, workspacePath);
-  const command = isWindowsServer(server)
-    ? `powershell -NoProfile -Command ${quoteShellArg(server, `if (Test-Path -LiteralPath ${quotedPath} -PathType Container) { exit 0 } else { exit 1 }`)}`
-    : `sh -lc ${quoteShellArg(server, `test -d ${quotedPath}`)}`;
+  const command = buildWorkspaceValidationCommand(server, workspacePath);
   const result = await runRemoteCommand(server, command);
   return result.code === 0;
 }
 
 export async function ensureWebTmuxSession(server, sessionName = 'webtmux') {
   const hasSession = buildRemoteCommand(server, ['has-session', '-t', sessionName]);
-  const existing = await runRemoteCommand(server, hasSession);
+  const existing = await runCheckedRemoteCommand(server, hasSession, 'tmux session check');
   if (existing.code === 0) {
     return sessionName;
   }
@@ -153,7 +153,7 @@ export async function createCliWindow(server, { cliType, launchCommand, sessionN
     'new-window',
     '-P',
     '-F',
-    '#{session_name}\t#{window_name}\t#{pane_index}\t#{pane_id}',
+    `#{session_name}${PANE_FIELD_SEPARATOR}#{window_name}${PANE_FIELD_SEPARATOR}#{pane_index}${PANE_FIELD_SEPARATOR}#{pane_id}`,
     '-t',
     sessionName,
     '-n',

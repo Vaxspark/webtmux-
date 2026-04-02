@@ -3,7 +3,8 @@ import { runCase } from '../helpers.mjs';
 import {
   buildDirectoryListCommand,
   buildRemoteCommand,
-  buildWorkspaceNavigationCommand
+  buildWorkspaceNavigationCommand,
+  buildWorkspaceValidationCommand
 } from '../../src/server/services/remote-platform.js';
 import {
   assertRemoteCommandSucceeded,
@@ -12,15 +13,16 @@ import {
   parseCreatedPaneRow,
   parseDirectoryRows,
   parsePaneLines,
-  parsePaneRow
+  parsePaneRow,
+  PANE_FIELD_SEPARATOR
 } from '../../src/server/services/tmux-gateway.js';
 
 await runCase('parsePaneLines normalizes capture-pane output', () => {
   assert.deepEqual(parsePaneLines('one\ntwo\n'), ['one', 'two']);
 });
 
-await runCase('parsePaneRow splits tmux tab-delimited rows', () => {
-  const parsed = parsePaneRow('cli-main\tnode\t0\tworkspace\tnode\t%0');
+await runCase('parsePaneRow splits tmux rows with unit separator', () => {
+  const parsed = parsePaneRow(['cli-main', 'node', '0', 'workspace', 'node', '%0'].join(PANE_FIELD_SEPARATOR));
   assert.deepEqual(parsed, {
     sessionName: 'cli-main',
     windowName: 'node',
@@ -36,7 +38,7 @@ await runCase('parseDirectoryRows keeps directory content intact', () => {
 });
 
 await runCase('parseCreatedPaneRow splits tmux created-window output', () => {
-  assert.deepEqual(parseCreatedPaneRow('webtmux\tcodex:webtmux\t0\t%9'), {
+  assert.deepEqual(parseCreatedPaneRow(['webtmux', 'codex:webtmux', '0', '%9'].join(PANE_FIELD_SEPARATOR)), {
     sessionName: 'webtmux',
     windowName: 'codex:webtmux',
     paneIndex: '0',
@@ -82,4 +84,11 @@ await runCase('buildRemoteCommand uses powershell quoting for apostrophes on win
   const server = { platform: 'windows', shellType: 'powershell', tmuxCommand: 'wsl.exe -e tmux' };
   const command = buildRemoteCommand(server, ['send-keys', '-t', '%1', "O'Brien"]);
   assert.match(command, /O''''Brien/);
+});
+
+await runCase('buildWorkspaceValidationCommand ignores tmuxUser for posix validation', () => {
+  const server = { platform: 'ubuntu', shellType: 'posix', username: 'ssh-user', tmuxUser: 'tmux-user' };
+  const command = buildWorkspaceValidationCommand(server, '/srv/work/webtmux');
+  assert.ok(!command.includes('sudo -u'));
+  assert.match(command, /^sh -lc /);
 });
