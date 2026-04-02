@@ -119,7 +119,14 @@ export async function listDirectories(server, targetPath, dependencies = {}) {
 export async function ensureWorkspaceDirectory(server, workspacePath, dependencies = {}) {
   const command = buildWorkspaceValidationCommand(server, workspacePath);
   const result = await getRunner(dependencies)(server, command);
-  return result.code === 0;
+  if (result.code === 0) {
+    return true;
+  }
+  if (result.code === 1) {
+    return false;
+  }
+  const details = result.stderr ? `: ${String(result.stderr).trim()}` : '';
+  throw new Error(`workspace validation failed with exit code ${result.code}${details}`);
 }
 
 export async function ensureWebTmuxSession(server, sessionName = 'webtmux', dependencies = {}) {

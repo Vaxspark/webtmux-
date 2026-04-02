@@ -16,8 +16,7 @@ import {
   parseDirectoryRows,
   parsePaneLines,
   parsePaneRow,
-  PANE_FIELD_SEPARATOR,
-  listPanes
+  PANE_FIELD_SEPARATOR
 } from '../../src/server/services/tmux-gateway.js';
 
 await runCase('parsePaneLines normalizes capture-pane output', () => {
@@ -77,22 +76,20 @@ await runCase('buildDirectoryEntries preserves absolute child paths', () => {
 });
 
 await runCase('buildRemoteCommand uses powershell quoting for apostrophes on windows', () => {
-  const server = { platform: 'windows', shellType: 'powershell', tmuxCommand: 'wsl.exe -e tmux' };
+  const server = { platform: 'windows', shellType: 'powershell', tmuxCommand: 'tmux' };
   const command = buildRemoteCommand(server, ['send-keys', '-t', '%1', "O'Brien"]);
   assert.match(command, /O''''Brien/);
 });
 
-await runCase('buildWorkspaceValidationCommand respects tmuxUser for posix validation', () => {
-  const server = { platform: 'ubuntu', shellType: 'posix', username: 'ssh-user', tmuxUser: 'tmux-user' };
-  const command = buildWorkspaceValidationCommand(server, '/srv/work/webtmux');
-  assert.ok(command.includes('sudo -u'));
-  assert.match(command, /^sudo -u /);
-});
-
-await runCase('buildRemoteCommand and validation skip tmuxUser on windows', () => {
+await runCase('wsl-backed windows tmux uses posix command bodies', () => {
   const server = { platform: 'windows', shellType: 'powershell', username: 'ssh-user', tmuxUser: 'tmux-user', tmuxCommand: 'wsl.exe -e tmux' };
-  assert.ok(!buildRemoteCommand(server, ['send-keys', '-t', '%1', 'echo']).includes('sudo -u'));
-  assert.ok(!buildWorkspaceValidationCommand(server, 'C:/Users/demo').includes('sudo -u'));
+  const remoteCommand = buildRemoteCommand(server, ['send-keys', '-t', '%1', "O'Brien"]);
+  assert.ok(remoteCommand.includes('wsl.exe -e tmux send-keys -t %1'));
+  assert.ok(remoteCommand.includes("O''\"''\"''Brien"));
+  assert.match(buildWorkspaceNavigationCommand(server, '/srv/work/webtmux'), /^cd /);
+  assert.match(buildWorkspaceValidationCommand(server, '/srv/work/webtmux'), /^powershell -NoProfile -Command /);
+  assert.match(buildDirectoryListCommand(server, '/srv/work/webtmux'), /^powershell -NoProfile -Command /);
+  assert.ok(buildDirectoryListCommand(server, '/srv/work/webtmux').includes('wsl.exe -e sh -lc'));
 });
 
 await runCase('ensureWebTmuxSession creates on code 1 and throws on other failures', async () => {
@@ -116,17 +113,26 @@ await runCase('ensureWebTmuxSession creates on code 1 and throws on other failur
   );
 });
 
-await runCase('ensureWorkspaceDirectory returns boolean based on validation command', async () => {
-  const commands = [];
-  const server = { platform: 'ubuntu', shellType: 'posix', username: 'ssh-user', tmuxUser: 'tmux-user' };
-  const exists = await ensureWorkspaceDirectory(server, '/srv/work/webtmux', {
-    runCommand: async (_server, command) => {
-      commands.push(command);
-      return { code: 0, stdout: '', stderr: '' };
+await runCase('ensureWorkspaceDirectory returns false for missing and throws on infrastructure errors', async () => {
+  const missing = await ensureWorkspaceDirectory(
+    { platform: 'ubuntu', shellType: 'posix', username: 'ssh-user', tmuxUser: 'tmux-user' },
+    '/srv/work/webtmux',
+    {
+      runCommand: async () => ({ code: 1, stdout: '', stderr: '' })
     }
-  });
-  assert.equal(exists, true);
-  assert.match(commands[0], /^sudo -u /);
+  );
+  assert.equal(missing, false);
+
+  await assert.rejects(
+    () => ensureWorkspaceDirectory(
+      { platform: 'ubuntu', shellType: 'posix', username: 'ssh-user', tmuxUser: 'tmux-user' },
+      '/srv/work/webtmux',
+      {
+        runCommand: async () => ({ code: 2, stdout: '', stderr: 'permission denied' })
+      }
+    ),
+    /workspace validation failed with exit code 2: permission denied/
+  );
 });
 
 await runCase('createCliWindow uses tmux field separator and command flow', async () => {
@@ -157,3 +163,29 @@ await runCase('createCliWindow uses tmux field separator and command flow', asyn
   assert.equal(sentKeys.length, 4);
   assert.ok(commands.some((command) => command.includes(PANE_FIELD_SEPARATOR)));
 });
+
+await runCase('createCliWindow uses posix navigation for wsl-backed windows tmux', async () => {
+  const sentKeys = [];
+  const server = { platform: 'windows', shellType: 'powershell', username: 'ssh-user', tmuxCommand: 'wsl.exe -e tmux' };
+  await createCliWindow(server, {
+    cliType: 'codex-cli',
+    launchCommand: 'codex',
+    sessionName: 'webtmux',
+    workspacePath: '/srv/work/webtmux'
+  }, {
+    runCommand: async (_server, command) => {
+      if (command.includes('has-session')) return { code: 1, stdout: '', stderr: '' };
+      if (command.includes('new-session')) return { code: 0, stdout: '', stderr: '' };
+      if (command.includes('new-window')) {
+        return { code: 0, stdout: ['webtmux', 'codex-cli:webtmux', '0', '%9'].join(PANE_FIELD_SEPARATOR), stderr: '' };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    },
+    sendKeys: async (_server, _target, keys) => {
+      sentKeys.push(keys.join(' '));
+    }
+  });
+  assert.equal(sentKeys[0], 'cd /srv/work/webtmux');
+});
+
+
