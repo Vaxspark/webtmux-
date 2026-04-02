@@ -228,6 +228,48 @@ export function getDefaultLaunchCommand(cliType) {
   return 'codex';
 }
 
+const CREATE_CLI_FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function createCliDialogFocusableElements(dialog) {
+  if (!dialog?.querySelectorAll) return [];
+  return Array.from(dialog.querySelectorAll(CREATE_CLI_FOCUSABLE_SELECTOR)).filter((element) => !element.disabled && (typeof element.getAttribute !== 'function' || element.getAttribute('aria-hidden') !== 'true'));
+}
+
+export function focusCreateCliDialog(dialog = typeof document !== 'undefined' ? document.querySelector('[data-create-cli-dialog]') : null) {
+  const first = createCliDialogFocusableElements(dialog).find((element) => typeof element.focus === 'function');
+  first?.focus?.();
+  return first ?? null;
+}
+
+export function handleCreateCliDialogKeydown(event, dialog = typeof document !== 'undefined' ? document.querySelector('[data-create-cli-dialog]') : null, activeElement = dialog?.ownerDocument?.activeElement ?? (typeof document !== 'undefined' ? document.activeElement : null)) {
+  if (!event || !dialog) return false;
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    return 'close';
+  }
+
+  if (event.key !== 'Tab') return false;
+
+  const focusables = createCliDialogFocusableElements(dialog);
+  if (focusables.length === 0) return false;
+
+  event.preventDefault();
+  const currentIndex = focusables.indexOf(activeElement);
+  const nextIndex = event.shiftKey
+    ? (currentIndex <= 0 ? focusables.length - 1 : currentIndex - 1)
+    : (currentIndex < 0 || currentIndex === focusables.length - 1 ? 0 : currentIndex + 1);
+  focusables[nextIndex]?.focus?.();
+  return 'tab';
+}
+
+function closeCreateCliDialog() {
+  state.createCli.open = false;
+  state.createCli.error = '';
+  state.createCli.creating = false;
+  state.createCli.loading = false;
+  render();
+}
 async function browseRemoteDirectory(path = '') {
   if (!state.createCli.selectedServer) return;
 
@@ -538,13 +580,13 @@ export function renderCreateCliDialog({ createCli, servers }) {
 
   return `
     <div class="modal-backdrop" data-action="close-create-cli"></div>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="create-cli-title">
+    <div class="modal" data-create-cli-dialog role="dialog" aria-modal="true" aria-labelledby="create-cli-title">
       <div class="modal__header">
         <div>
           <h2 id="create-cli-title">New CLI</h2>
           <p class="modal__subtitle">Choose a server, workspace, and launch command.</p>
         </div>
-        <button class="icon-button" type="button" data-action="close-create-cli" aria-label="Close">¡Á</button>
+        <button class="icon-button" type="button" data-action="close-create-cli" aria-label="Close">Close</button>
       </div>
       <div class="modal__body stack">
         <label class="stack">
@@ -561,12 +603,11 @@ export function renderCreateCliDialog({ createCli, servers }) {
             <option value="copilot-cli" ${createCli.selectedCli === 'copilot-cli' ? 'selected' : ''}>Copilot CLI</option>
           </select>
         </label>
-        ${createCli.error ? `<div class="error">${escapeHtml(createCli.error)}</div>` : ''}
         ${renderDirectoryBrowser({
           currentPath: createCli.workspacePath,
           parentPath: createCli.parentPath,
           directories: createCli.directories,
-          error: createCli.loading ? '' : createCli.error,
+          error: createCli.error,
           loading: createCli.loading
         })}
         <label class="stack">
@@ -578,7 +619,9 @@ export function renderCreateCliDialog({ createCli, servers }) {
         </div>
       </div>
     </div>`;
-}// Detect interactive menu items in output lines
+}
+
+// Detect interactive menu items in output lines
 // Matches patterns like: "> 1. Option text", "  2. Option text"
 const MENU_ITEM_RE = /^(\s*[\u203a>]?\s*)(\d+)\.\s+(.+)$/;
 
@@ -961,7 +1004,7 @@ function attachListeners() {
       state.createCli.directories = [];
       state.createCli.parentPath = '';
       await loadServers();
-      await browseRemoteDirectory('');
+      await browseRemoteDirectory('', true);
       return;
     }
 
@@ -1023,15 +1066,11 @@ function attachListeners() {
       if (state.createCli.selectedServer) {
         await browseRemoteDirectory('');
       }
+      focusCreateCliDialog();
       return;
     }
-
     if (action === 'close-create-cli') {
-      state.createCli.open = false;
-      state.createCli.error = '';
-      state.createCli.creating = false;
-      state.createCli.loading = false;
-      render();
+      closeCreateCliDialog();
       return;
     }
 
@@ -1219,19 +1258,22 @@ function attachListeners() {
       await sendMessage();
     }
   });
-
   document.addEventListener('keydown', async (event) => {
+    if (state.createCli.open) {
+      const dialog = document.querySelector('[data-create-cli-dialog]');
+      const handled = handleCreateCliDialogKeydown(event, dialog);
+      if (handled === 'close') {
+        closeCreateCliDialog();
+      }
+      if (handled) return;
+    }
+
     if (event.target.id !== 'session-input') return;
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       await sendMessage();
     }
   });
-}
-
-if (typeof document !== 'undefined') {
-  attachListeners();
-  render();
   if (state.authenticated) {
     loadOverview().catch((error) => {
       state.overviewError = error.message;

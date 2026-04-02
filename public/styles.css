@@ -1,4 +1,4 @@
-/* 鈹€鈹€鈹€ Variables 鈹€鈹€鈹€ */
+/* Section */
 :root {
   --bg-primary: #ffffff;
   --bg-secondary: #f7f7f8;
@@ -28,7 +28,7 @@
   }
 }
 
-/* 鈹€鈹€鈹€ Reset 鈹€鈹€鈹€ */
+/* Section */
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
@@ -57,14 +57,14 @@ button { background: none; border: none; cursor: pointer; padding: 0; color: inh
   border-color: var(--border-focus);
 }
 
-/* 鈹€鈹€鈹€ App Layout (sidebar + main) 鈹€鈹€鈹€ */
+/* Section */
 .app-layout {
   display: flex;
   width: 100vw;
   height: 100vh;
 }
 
-/* 鈹€鈹€鈹€ Sidebar 鈹€鈹€鈹€ */
+/* Section */
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -193,7 +193,7 @@ button { background: none; border: none; cursor: pointer; padding: 0; color: inh
   opacity: 1;
 }
 
-/* 鈹€鈹€鈹€ Settings Guide 鈹€鈹€鈹€ */
+/* Section */
 .settings-guide {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
@@ -235,7 +235,7 @@ button { background: none; border: none; cursor: pointer; padding: 0; color: inh
   z-index: 40;
 }
 
-/* 鈹€鈹€鈹€ Main Content 鈹€鈹€鈹€ */
+/* Section */
 .main-content {
   flex: 1;
   display: flex;
@@ -266,7 +266,7 @@ button { background: none; border: none; cursor: pointer; padding: 0; color: inh
   overflow: hidden;
 }
 
-/* 鈹€鈹€鈹€ Button icon (hamburger / close) 鈹€鈹€鈹€ */
+/* Section */
 .btn-icon {
   display: none; /* shown only on mobile */
   align-items: center;
@@ -278,7 +278,7 @@ button { background: none; border: none; cursor: pointer; padding: 0; color: inh
 .btn-icon:hover { background: var(--bg-hover); }
 .btn-icon.block { /* ensure the open-sidebar btn takes space */ }
 
-/* 鈹€鈹€鈹€ Login 鈹€鈹€鈹€ */
+/* Section */
 .auth-layout {
   display: flex;
   align-items: center;
@@ -304,7 +304,7 @@ button { background: none; border: none; cursor: pointer; padding: 0; color: inh
   margin: 0 0 0.5rem 0;
 }
 
-/* 鈹€鈹€鈹€ Buttons 鈹€鈹€鈹€ */
+/* Section */
 .primary, .btn-primary {
   display: inline-flex;
   align-items: center;
@@ -370,7 +370,7 @@ button.filter-control {
 }
 .btn-danger:hover { background: var(--text-error); color: var(--bg-primary); }
 
-/* 鈹€鈹€鈹€ Tags / Badges 鈹€鈹€鈹€ */
+/* Section */
 .badge, .tag {
   display: inline-block;
   font-size: 0.75rem;
@@ -387,7 +387,7 @@ button.filter-control {
   cursor: pointer;
 }
 
-/* 鈹€鈹€鈹€ Utility 鈹€鈹€鈹€ */
+/* Section */
 .muted { color: var(--text-secondary); font-size: 0.85rem; }
 .error {
   color: var(--text-error);
@@ -409,7 +409,7 @@ button.filter-control {
   gap: 0.75rem;
 }
 
-/* 鈹€鈹€鈹€ Scroll Container 鈹€鈹€鈹€ */
+/* Section */
 .scroll-container {
   flex: 1;
   overflow-y: auto;
@@ -430,7 +430,7 @@ button.filter-control {
   font-weight: 600;
 }
 
-/* 鈹€鈹€鈹€ Filter Bar 鈹€鈹€鈹€ */
+/* Section */
 .filter-bar {
   display: flex;
   gap: 0.5rem;
@@ -443,7 +443,7 @@ button.filter-control {
   height: 2.25rem;
 }
 
-/* 鈹€鈹€鈹€ Cards Grid 鈹€鈹€鈹€ */
+/* Section */
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -510,7 +510,7 @@ button.filter-control {
   margin-left: auto;
 }
 
-/* 鈹€鈹€鈹€ Preview (pane preview lines) 鈹€鈹€鈹€ */
+/* Section */
 .preview {
   list-style: none;
   margin: 0;
@@ -532,7 +532,7 @@ button.filter-control {
   font-style: italic;
 }
 
-/* 鈹€鈹€鈹€ Forms 鈹€鈹€鈹€ */
+/* Section */
 .form-row {
   display: flex;
   gap: 0.5rem;
@@ -543,7 +543,7 @@ button.filter-control {
   min-width: 140px;
 }
 
-/* 鈹€鈹€鈹€ Session Layout 鈹€鈹€鈹€ */
+/* Section */
 .session-layout {
   display: flex;
   flex-direction: column;
@@ -574,7 +574,7 @@ button.filter-control {
 
 .session-line { margin: 0; padding: 0 0 0.15rem 0; }
 
-/* 鈹€鈹€鈹€ Input Dock 鈹€鈹€鈹€ */
+/* Section */
 .input-dock {
   border-top: 1px solid var(--border-color);
   padding: 0.75rem 1rem;
@@ -606,7 +606,7 @@ button.filter-control {
   gap: 0.35rem;
 }
 
-/* 鈹€鈹€鈹€ Mode Bar 鈹€鈹€鈹€ */
+/* Section */
 .mode-bar {
   display: flex;
   gap: 0.35rem;
@@ -625,7 +625,7 @@ button.filter-control {
 }
 .mode-chip:hover { background: var(--bg-hover); }
 
-/* 鈹€鈹€鈹€ Menu Actions (interactive menu items) 鈹€鈹€鈹€ */
+/* Section */
 .menu-actions {
   display: flex;
   gap: 0.35rem;
@@ -648,7 +648,7 @@ button.filter-control {
 .menu-chip__num { font-weight: 600; }
 .menu-chip__label { font-weight: 400; }
 
-/* 鈹€鈹€鈹€ Command Palette 鈹€鈹€鈹€ */
+/* Section */
 .command-palette {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
@@ -712,7 +712,7 @@ button.filter-control {
 }
 .command-row__send:hover { background: var(--bg-hover); color: var(--text-primary); }
 
-/* 鈹€鈹€鈹€ Mobile / Responsive 鈹€鈹€鈹€ */
+/* Section */
 .mobile-only { display: none !important; }
 
 @media (max-width: 768px) {

@@ -3,6 +3,8 @@ import { runCase } from '../helpers.mjs';
 import {
   filterCommands,
   getDefaultLaunchCommand,
+  focusCreateCliDialog,
+  handleCreateCliDialogKeydown,
   renderCreateCliDialog,
   renderDirectoryBrowser,
   renderOverviewFilterBar,
@@ -92,5 +94,89 @@ await runCase('renderCreateCliDialog includes server, cli, workspace, and launch
   assert.match(html, /codex/);
   assert.match(html, /Create CLI/);
 });
+await runCase('renderCreateCliDialog renders create errors only once', () => {
+  const html = renderCreateCliDialog({
+    createCli: {
+      creating: false,
+      directories: [],
+      error: 'Workspace not found',
+      loading: false,
+      open: true,
+      parentPath: '/',
+      selectedCli: 'codex-cli',
+      selectedServer: 'server-a',
+      workspacePath: '/home/demo',
+      launchCommand: 'codex'
+    },
+    servers: [{ id: 'server-a', name: 'Server A' }]
+  });
+
+  assert.equal((html.match(/Workspace not found/g) || []).length, 1);
+});
+
+await runCase('renderCreateCliDialog uses an accessible close button label', () => {
+  const html = renderCreateCliDialog({
+    createCli: {
+      creating: false,
+      directories: [],
+      error: '',
+      loading: false,
+      open: true,
+      selectedCli: 'codex-cli',
+      selectedServer: 'server-a',
+      workspacePath: '/home/demo',
+      launchCommand: 'codex'
+    },
+    servers: [{ id: 'server-a', name: 'Server A' }]
+  });
+
+  assert.match(html, /data-action="close-create-cli"/);
+  assert.match(html, /aria-label="Close"/);
+  assert.match(html, />Close<\/button>/);
+});
+
+await runCase('focusCreateCliDialog focuses the first enabled control', () => {
+  let focused = '';
+  const first = { disabled: false, focus: () => { focused = 'first'; } };
+  const second = { disabled: false, focus: () => { focused = 'second'; } };
+  const dialog = {
+    querySelectorAll: () => [first, second]
+  };
+
+  focusCreateCliDialog(dialog);
+
+  assert.equal(focused, 'first');
+});
+
+await runCase('handleCreateCliDialogKeydown traps tab and closes on escape', () => {
+  let focused = '';
+  const first = { disabled: false, focus: () => { focused = 'first'; } };
+  const second = { disabled: false, focus: () => { focused = 'second'; } };
+  const dialog = {
+    ownerDocument: { activeElement: first },
+    querySelectorAll: () => [first, second]
+  };
+
+  let tabPrevented = false;
+  const tabEvent = {
+    key: 'Tab',
+    shiftKey: false,
+    preventDefault: () => { tabPrevented = true; }
+  };
+
+  handleCreateCliDialogKeydown(tabEvent, dialog);
+  assert.equal(tabPrevented, true);
+  assert.equal(focused, 'second');
+
+  let escapePrevented = false;
+  const escapeEvent = {
+    key: 'Escape',
+    preventDefault: () => { escapePrevented = true; }
+  };
+
+  assert.equal(handleCreateCliDialogKeydown(escapeEvent, dialog), 'close');
+  assert.equal(escapePrevented, true);
+});
+
 
 
