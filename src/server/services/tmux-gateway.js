@@ -29,8 +29,7 @@ export function parsePaneRow(row) {
 export function parseDirectoryRows(output) {
   return String(output)
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+    .filter((line) => line.length > 0);
 }
 
 export function parseCreatedPaneRow(row) {
@@ -73,6 +72,19 @@ export function buildDirectoryEntries(directoryPaths) {
   }));
 }
 
+export function assertRemoteCommandSucceeded(result, context) {
+  if (result.code === 0) {
+    return result;
+  }
+  const details = result.stderr ? `: ${String(result.stderr).trim()}` : '';
+  throw new Error(`${context} failed with exit code ${result.code}${details}`);
+}
+
+async function runCheckedRemoteCommand(server, command, context) {
+  const result = await runRemoteCommand(server, command);
+  return assertRemoteCommandSucceeded(result, context);
+}
+
 export async function capturePane(server, target) {
   const command = buildRemoteCommand(server, ['capture-pane', '-p', '-t', target, '-S', '-120']);
   const result = await runRemoteCommand(server, command);
@@ -106,7 +118,7 @@ export async function listPanes(server) {
 
 export async function listDirectories(server, targetPath) {
   const command = buildDirectoryListCommand(server, targetPath);
-  const result = await runRemoteCommand(server, command);
+  const result = await runCheckedRemoteCommand(server, command, 'directory listing');
   return buildDirectoryEntries(parseDirectoryRows(result.stdout));
 }
 
@@ -125,9 +137,12 @@ export async function ensureWebTmuxSession(server, sessionName = 'webtmux') {
   if (existing.code === 0) {
     return sessionName;
   }
+  if (existing.code !== 1) {
+    throw new Error(`tmux session check failed with exit code ${existing.code}`);
+  }
 
   const createSession = buildRemoteCommand(server, ['new-session', '-d', '-s', sessionName]);
-  await runRemoteCommand(server, createSession);
+  await runCheckedRemoteCommand(server, createSession, 'tmux session creation');
   return sessionName;
 }
 
@@ -144,7 +159,7 @@ export async function createCliWindow(server, { cliType, launchCommand, sessionN
     '-n',
     windowName
   ]);
-  const created = await runRemoteCommand(server, createWindow);
+  const created = await runCheckedRemoteCommand(server, createWindow, 'tmux window creation');
   const pane = parseCreatedPaneRow(created.stdout.trim());
   await sendKeys(server, pane.paneId, [buildWorkspaceNavigationCommand(server, workspacePath)]);
   await sendKeys(server, pane.paneId, ['Enter']);
@@ -155,5 +170,5 @@ export async function createCliWindow(server, { cliType, launchCommand, sessionN
 
 export async function sendKeys(server, target, keys) {
   const command = buildRemoteCommand(server, ['send-keys', '-t', target, ...keys]);
-  await runRemoteCommand(server, command);
+  await runCheckedRemoteCommand(server, command, 'tmux send-keys');
 }

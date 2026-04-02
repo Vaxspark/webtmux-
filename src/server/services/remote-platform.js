@@ -43,7 +43,8 @@ export function buildRemoteCommand(server, args) {
   if (server.tmuxUser && server.tmuxUser !== server.username) {
     tmuxCmd = `sudo -u ${quotePosixArg(server.tmuxUser)} ${tmuxCmd}`;
   }
-  const command = `${tmuxCmd} ${args.map(quotePosixArg).join(' ')}`.trim();
+  const quotedArgs = args.map((arg) => quoteShellArg(server, arg));
+  const command = `${tmuxCmd} ${quotedArgs.join(' ')}`.trim();
   if (isWindowsShell(server)) {
     return `powershell -NoProfile -Command ${quotePowershell(command)}`;
   }

@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import { runCase } from '../helpers.mjs';
 import {
   buildDirectoryListCommand,
+  buildRemoteCommand,
   buildWorkspaceNavigationCommand
 } from '../../src/server/services/remote-platform.js';
 import {
+  assertRemoteCommandSucceeded,
   buildCliWindowName,
   buildDirectoryEntries,
   parseCreatedPaneRow,
@@ -29,8 +31,8 @@ await runCase('parsePaneRow splits tmux tab-delimited rows', () => {
   });
 });
 
-await runCase('parseDirectoryRows keeps only non-empty directory rows', () => {
-  assert.deepEqual(parseDirectoryRows('repo\nnotes\n'), ['repo', 'notes']);
+await runCase('parseDirectoryRows keeps directory content intact', () => {
+  assert.deepEqual(parseDirectoryRows(' repo \n\nnotes\n'), [' repo ', 'notes']);
 });
 
 await runCase('parseCreatedPaneRow splits tmux created-window output', () => {
@@ -67,4 +69,17 @@ await runCase('buildDirectoryEntries preserves absolute child paths', () => {
     { name: 'repo', path: '/home/demo/repo' },
     { name: 'notes', path: '/home/demo/notes' }
   ]);
+});
+
+await runCase('assertRemoteCommandSucceeded throws on non-zero exit codes', () => {
+  assert.throws(
+    () => assertRemoteCommandSucceeded({ code: 2, stderr: 'boom' }, 'tmux send-keys'),
+    /tmux send-keys failed with exit code 2: boom/
+  );
+});
+
+await runCase('buildRemoteCommand uses powershell quoting for apostrophes on windows', () => {
+  const server = { platform: 'windows', shellType: 'powershell', tmuxCommand: 'wsl.exe -e tmux' };
+  const command = buildRemoteCommand(server, ['send-keys', '-t', '%1', "O'Brien"]);
+  assert.match(command, /O''''Brien/);
 });
