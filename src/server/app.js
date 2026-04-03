@@ -26,7 +26,14 @@ export function createApp(dependencies = {}) {
   app.register(staticPlugin, {
     root: path.join(process.cwd(), 'public'),
     prefix: '/',
-    index: ['index.html']
+    index: ['index.html'],
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('.js') || filePath.endsWith('.css')) {
+        res.setHeader('Cache-Control', 'no-store');
+      } else if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    }
   });
   app.register(registerAuthRoutes);
   app.register(registerOverviewRoutes);
