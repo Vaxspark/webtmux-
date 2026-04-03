@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["DOM", "ES2022"],
+    "outDir": "public/assets",
+    "rootDir": "src/web"
+  },
+  "include": ["src/web/**/*.ts", "src/shared/**/*.ts"]
+}

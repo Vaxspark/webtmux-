@@ -498,16 +498,25 @@ button.filter-control {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-secondary);
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .session-toolbar {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-top: auto;
 }
 .session-toolbar > :last-child {
   margin-left: auto;
+}
+.session-toolbar .btn-primary,
+.session-toolbar .btn-ghost,
+.session-toolbar .btn-danger {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.875rem;
 }
 
 /* Section */
@@ -520,7 +529,7 @@ button.filter-control {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   line-height: 1.4;
-  max-height: 6rem;
+  height: 5.5rem;
   overflow-y: auto;
 }
 .preview li {
@@ -555,6 +564,7 @@ button.filter-control {
   flex: 1;
   overflow-y: auto;
   background: var(--bg-primary);
+  min-height: 0;
 }
 
 .output {

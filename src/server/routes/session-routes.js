@@ -4,6 +4,7 @@ import { getConfig } from '../config.js';
 import { loadServerRegistry } from '../services/server-registry.js';
 import * as tmuxGateway from '../services/tmux-gateway.js';
 import { mapControlAction } from '../services/session-stream.js';
+import { mergePaneCapture, clearPaneHistory } from '../services/pane-history.js';
 
 const inputSchema = z.object({
   serverId: z.string().min(1),
@@ -31,7 +32,9 @@ export async function registerSessionRoutes(app, dependencies = {}) {
       return reply.code(404).send({ message: 'Server not found' });
     }
 
-    return { lines: await gateway.capturePane(server, params.target) };
+    const rawLines = await gateway.capturePane(server, params.target);
+    const paneKey = `${params.serverId}:${params.target}`;
+    return { lines: mergePaneCapture(paneKey, rawLines) };
   });
 
   app.post('/api/session/create', { preHandler: requireAuth }, async (request, reply) => {
@@ -54,6 +57,7 @@ export async function registerSessionRoutes(app, dependencies = {}) {
     }
 
     const created = await gateway.createCliWindow(server, body);
+    clearPaneHistory(`${server.id}:${created.paneId}`);
     return {
       serverId: server.id,
       ...created,
