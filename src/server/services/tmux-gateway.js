@@ -34,6 +34,23 @@ export function parsePaneLines(output) {
     .filter(Boolean);
 }
 
+// Like parsePaneLines but preserves empty lines within content;
+// only trailing empty lines (from unused scrollback) are removed.
+export function parseCaptureLinesWithBlanks(output) {
+  const lines = String(output)
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd());
+  // Remove trailing empty lines
+  while (lines.length > 0 && lines[lines.length - 1] === '') {
+    lines.pop();
+  }
+  // Remove leading empty lines (unused history above first content)
+  while (lines.length > 0 && lines[0] === '') {
+    lines.shift();
+  }
+  return lines;
+}
+
 export function parsePaneRow(row, separator = PANE_FIELD_SEPARATOR) {
   const [sessionName, windowName, paneIndex, paneTitle, processName, paneId] = String(row).split(separator);
   return {
@@ -80,10 +97,10 @@ export function buildDirectoryEntries(directoryPaths) {
   }));
 }
 
-export async function capturePane(server, target, dependencies = {}) {
-  const command = buildRemoteCommand(server, ['capture-pane', '-p', '-t', target, '-S', '-120']);
+export async function capturePane(server, target, dependencies = {}, { historyLines = 5000 } = {}) {
+  const command = buildRemoteCommand(server, ['capture-pane', '-p', '-t', target, '-S', `-${historyLines}`]);
   const result = await runCheckedRemoteCommand(server, command, 'tmux capture-pane', dependencies);
-  return parsePaneLines(result.stdout);
+  return parseCaptureLinesWithBlanks(result.stdout);
 }
 
 export async function listPanes(server, dependencies = {}) {
@@ -97,7 +114,7 @@ export async function listPanes(server, dependencies = {}) {
     const { sessionName, windowName, paneIndex, paneTitle, processName, paneId } = parsePaneRow(row);
     let preview = [];
     try {
-      preview = await capturePane(server, paneId, dependencies);
+      preview = await capturePane(server, paneId, dependencies, { historyLines: 50 });
     } catch {
       // pane may have been closed after listing; continue without preview
     }
@@ -109,7 +126,7 @@ export async function listPanes(server, dependencies = {}) {
       paneIndex,
       paneTitle,
       processName,
-      cliType: detectCliType({ processName, paneTitle, previewLines: preview }),
+      cliType: detectCliType({ processName, paneTitle, windowName, previewLines: preview }),
       preview: preview.slice(-3),
       updatedAt: new Date().toISOString()
     };

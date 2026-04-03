@@ -886,7 +886,7 @@ function sessionHtml() {
     <div class="session-layout">
       ${modeBarHtml()}
       ${state.sessionError ? `<div class="panel error">${escapeHtml(state.sessionError)}</div>` : ''}
-      <section class="panel output-panel">
+      <section class="output-panel">
         <div class="output output--terminal" id="session-output">
           ${renderOutputHtml(state.sessionLines)}
         </div>
@@ -940,8 +940,12 @@ function renderSessionOnly() {
     render();
     return;
   }
+  const panel = output.parentElement;
+  const wasAtBottom = !panel || (panel.scrollHeight - panel.scrollTop - panel.clientHeight < 80);
   output.innerHTML = renderOutputHtml(state.sessionLines);
-  output.scrollTop = output.scrollHeight;
+  if (wasAtBottom && panel) {
+    panel.scrollTop = panel.scrollHeight;
+  }
   const menuSlot = document.getElementById('menu-actions-slot');
   if (menuSlot) menuSlot.innerHTML = renderMenuActionsHtml(state.sessionLines);
 }
