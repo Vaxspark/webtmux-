@@ -23,6 +23,16 @@ export function createApp(dependencies = {}) {
     }
   });
   app.register(websocket);
+  // Force no-store for JS/CSS so Cloudflare CDN never caches stale assets
+  app.addHook('onSend', (_request, reply, payload, done) => {
+    const url = reply.request?.url ?? '';
+    if (url.endsWith('.js') || url.endsWith('.css')) {
+      reply.header('cache-control', 'no-store');
+    } else if (url.endsWith('.html') || url === '/') {
+      reply.header('cache-control', 'no-cache');
+    }
+    done(null, payload);
+  });
   app.register(staticPlugin, {
     root: path.join(process.cwd(), 'public'),
     prefix: '/',
